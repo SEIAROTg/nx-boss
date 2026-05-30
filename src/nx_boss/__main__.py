@@ -162,13 +162,13 @@ async def heartbeat():
 
 
 class Device(pydantic.BaseModel):
-    call_timing: str
+    call_timing: int | str
     scanner_ip: str
     scanner_mac: str
     scanner_model: str
     scanner_name: str
-    scanner_port: str
-    scanner_protocol: str
+    scanner_port: int | str
+    scanner_protocol: int | str
     serial_no: str
 
 

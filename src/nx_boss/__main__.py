@@ -108,6 +108,7 @@ class Batch:
         self.id = id
         self._dir = dir
         self._metadata = metadata
+        self.last_used: float = time.time()
 
     @classmethod
     def create(cls, job: Job) -> 'Batch':
@@ -124,6 +125,7 @@ class Batch:
         return b
 
     def add_file(self, *, filename: str, content: bytes, parameters: dict[str, Any]):
+        self._touch()
         file_path = self._dir / filename
         if file_path.name != filename:
             raise ValueError('bad filename')
@@ -136,8 +138,12 @@ class Batch:
         self._dump_metadata()
 
     def set_state(self, state: str):
+        self._touch()
         self._metadata.state = state
         self._dump_metadata()
+
+    def _touch(self) -> None:
+        self.last_used = time.time()
 
     def _dump_metadata(self) -> None:
         (self._dir / '.metadata.json').write_text(self._metadata.model_dump_json())
@@ -206,7 +212,7 @@ class BatchRequest(pydantic.BaseModel):
 async def post_batch(request: BatchRequest):
     job = app.state.config.jobs[int(request.job_id)]
     batches = app.state.batches
-    while (first := next(iter(batches.values()), None)) and time.time() - first['last_used'] > 3600:
+    while (first := next(iter(batches.values()), None)) and time.time() - first.last_used > 3600:
         batches.popitem(last=False)
     batch = Batch.create(job=job)
     batches[batch.id] = batch

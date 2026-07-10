@@ -99,7 +99,7 @@ class Config:
 class BatchMetadata(pydantic.BaseModel):
     job_name: str
     created_at: str
-    completed: bool = False
+    state: str
     files: list[dict[str, Any]] = []
 
 
@@ -117,6 +117,7 @@ class Batch:
         metadata = BatchMetadata(
             job_name=job.job_info['name'],
             created_at=_now(),
+            state='created',
         )
         b = Batch(id=batch_id, dir=batch_dir, metadata=metadata)
         b._dump_metadata()
@@ -134,8 +135,8 @@ class Batch:
         })
         self._dump_metadata()
 
-    def complete(self):
-        self._metadata.completed = True
+    def set_state(self, state: str):
+        self._metadata.state = state
         self._dump_metadata()
 
     def _dump_metadata(self) -> None:
@@ -228,10 +229,19 @@ async def post_image(
     )
 
 
+class BatchExecuteParameter(pydantic.BaseModel):
+    execute_type: str
+
+
 @app.put('/NmWebService/batch/{batch_id}')
 async def put_batch(batch_id: str, parameter: Annotated[bytes, File()]):
-    batch = app.state.batches.pop(batch_id)
-    batch.complete()
+    param = BatchExecuteParameter.model_validate_json(parameter)
+    batch = app.state.batches[batch_id]
+    if param.execute_type == 'start':
+        batch.set_state('completed')
+        app.state.batches.pop(batch_id)
+    else:
+        batch.set_state(param.execute_type)
 
 
 @app.delete('/NmWebService/accesstoken')

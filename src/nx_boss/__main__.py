@@ -1,10 +1,8 @@
 #!/usr/bin/env python
 
-from curses import meta
 import time
 import uuid
 import collections
-from multiprocessing import Value
 import copy
 import dataclasses
 from typing import Annotated, Any
@@ -13,14 +11,14 @@ import datetime
 import json
 import pathlib
 
-from fastapi import FastAPI, Query, Form, File, UploadFile
+from fastapi import FastAPI, HTTPException, Query, File, UploadFile
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 import pydantic
 import ruamel.yaml
 import uvicorn
 
-_DEFAULT_JOB_SETTIGNS = {'continuous_scan':False,'show_message':False,'message':None,'show_thumbnail':False ,'show_scan_button':False,'auto_logout':False,'wait_file_transfer':False,'show_transfer_completion':False,'metadata_setting':None,'job_timeout':0}
+_DEFAULT_JOB_SETTINGS = {'continuous_scan':False,'show_message':False,'message':None,'show_thumbnail':False ,'show_scan_button':False,'auto_logout':False,'wait_file_transfer':False,'show_transfer_completion':False,'metadata_setting':None,'job_timeout':0}
 _DEFAULT_SCAN_SETTINGS = {'parameters':{'task':{'actions':{'streams':{'sources':{'devControls':{'attributes':[{'attribute':'stop','values':{'value':'true'}},{'attribute':'lap24','values':{'value':24}},{'attribute':'back','values':{'value':'true'}},{'attribute':'initialCount','values':{'value':1}},{'attribute':'decr','values':{'value':'false'}},{'attribute':'ul','values':{'value':'lower'}},{'attribute':'cstep','values':{'value':0}},{'attribute':'xOffset','values':{'value':0}},{'attribute':'yOffset','values':{'value':0}},{'attribute':'font','values':{'value':'horizontalNormal'}},{'attribute':'bold','values':{'value':'false'}},{'attribute':'dirs','values':{'value':'ltor'}},{'attribute':'stringLength','values':{'value':0}},{'attribute':'string','values':{'value':''}}]},'docAnnotations':{'blankPageSkip':{'attributes':[{'attribute':'blankPageSkip','values':{'value':'off'}}]},'thumbnailQuality':{'attributes':[{'attribute':'thumbnailQuality','values':{'value':'1'}}]},'verticalLine':{'attributes':[{'attribute':'verticalLine','values':{'value':'disable'}}]}},'feedControls':{'background':{'attributes':[{'attribute':'bgColor','values':{'value':'black'}}]},'doubleFeed':{'attributes':[{'attribute':'overlap','values':{'value':'disable'}},{'attribute':'length','values':{'value':'disable'}},{'attribute':'response','values':{'value':'notify'}},{'attribute':'deviceSpecification','values':{'value':'disable'}},{'attribute':'iOMFLength','values':{'value':'0'}}]},'ejection':{'attributes':[{'attribute':'synchronousEjection','values':{'value':'disable'}},{'attribute':'synchronousNextFeed','values':{'value':'disable'}}]},'noSeparation':{'attributes':[{'attribute':'noSeparationControl','values':{'value':'deviceSpecification'}}]},'numberOfSheets':{'attributes':[{'attribute':'sheetCounts','values':{'value':'0'}}]},'paperProtection':{'attributes':[{'attribute':'paperProtection','values':{'value':'deviceSpecification'}},{'attribute':'soundJam','values':{'value':'deviceSpecification'}},{'attribute':'paperProtection3','values':{'value':'deviceSpecification'}}]},'prePick':{'attributes':[{'attribute':'prePickControl','values':{'value':'enable'}}]}},'pixelFormats':{'attributes':[{'attribute':'resolution','values':{'value':'300'}},{'attribute':'height','values':{'value':'15552'}},{'attribute':'width','values':{'value':'10624'}},{'attribute':'automaticSize','values':{'value':'enable'}},{'attribute':'offsetWidth','values':{'value':'0'}},{'attribute':'offsetHeight','values':{'value':'0'}},{'attribute':'compression','values':{'value':'jpeg'}},{'attribute':'dropoutColor','values':{'value':'green'}},{'attribute':'jpgSubSampling','values':{'value':'444'}},{'attribute':'endOfPageDetection','values':{'value':'off'}},{'attribute':'overscan','values':{'value':'on'}},{'attribute':'automaticDeskew','values':{'value':'enable'}},{'attribute':'cropMargin','values':{'value':'0.0'}},{'attribute':'tabCropping','values':{'value':'on'}},{'attribute':'jpegQuality','values':{'value':'80'}},{'attribute':'highSpeedMode','values':{'value':'off'}},{'attribute':'paperWidth','values':{'value':'10624'}},{'attribute':'paperLength','values':{'value':'15552'}},{'attribute':'sRGBPattern','values':{'value':'table1'}},{'attribute':'moireRemoval','values':{'value':'deviceSpecification'}}],'pixelFormat':'rgb24'},'readControls':{'imageCacheMode':{'attributes':[{'attribute':'imageCacheMode','values':{'value':'scannerMemory'}}]},'imageTransferMethod':{'attributes':[{'attribute':'imageTransferMethod','values':{'value':'alternate'}}]}},'source':'feeder'}}}}}}
 
 
@@ -58,7 +56,7 @@ class Job:
 
     @classmethod
     def parse(cls, *, id: int, name: str, job: dict[str, Any]) -> 'Job':
-        job_settings = copy.deepcopy(_DEFAULT_JOB_SETTIGNS)
+        job_settings = copy.deepcopy(_DEFAULT_JOB_SETTINGS)
         _update_recursive(job_settings, job.get('job_settings', {}))
         scan_settings = copy.deepcopy(_DEFAULT_SCAN_SETTINGS)
         _update_recursive(
@@ -227,7 +225,9 @@ async def post_image(
 ):
     parameter_decoded = json.loads(parameter.decode())
     batch_id = parameter_decoded['batch_id']
-    batch = app.state.batches[batch_id]
+    batch = app.state.batches.get(batch_id)
+    if batch is None:
+        raise HTTPException(status_code=404)
     batch.add_file(
         filename=image.filename,
         content=await image.read(),
@@ -242,7 +242,9 @@ class BatchExecuteParameter(pydantic.BaseModel):
 @app.put('/NmWebService/batch/{batch_id}')
 async def put_batch(batch_id: str, parameter: Annotated[bytes, File()]):
     param = BatchExecuteParameter.model_validate_json(parameter)
-    batch = app.state.batches[batch_id]
+    batch = app.state.batches.get(batch_id)
+    if batch is None:
+        raise HTTPException(status_code=404)
     if param.execute_type == 'start':
         batch.set_state('completed')
         app.state.batches.pop(batch_id)

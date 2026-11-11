@@ -7,7 +7,7 @@ This allows compatible scanners (e.g. fi-7300NX) to scan directly over network, 
 ## Usage
 
 ```console
-$ pip install git+https://github.com/SEIAROTg/nix-boss.git
+$ pip install git+https://github.com/SEIAROTg/nx-boss.git
 $ curl -OL https://github.com/SEIAROTg/nx-boss/raw/refs/heads/main/config.example.yaml
 $ mkdir out  # `output_path` in config
 $ python -m nx_boss -c config.example.yaml --host 0.0.0.0 --port 10447

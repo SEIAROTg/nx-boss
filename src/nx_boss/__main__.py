@@ -133,6 +133,8 @@ class Batch:
             'received_at': _now(),
             'parameters': parameters,
         })
+        # Images may arrive out of order, e.g. back before front.
+        self._metadata.files.sort(key=lambda file: file['filename'])
         self._dump_metadata()
 
     def set_state(self, state: str):

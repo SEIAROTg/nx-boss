@@ -262,10 +262,18 @@ if __name__ == '__main__':
     parser.add_argument('--host', type=str, default='127.0.0.1')
     parser.add_argument('--port', type=int, default=10447)
     parser.add_argument('--config', '-c', type=str, required=True)
+    parser.add_argument('--ssl-certfile', type=str, help='TLS certificate (PEM); enables HTTPS with --ssl-keyfile')
+    parser.add_argument('--ssl-keyfile', type=str, help='TLS private key (PEM)')
     args = parser.parse_args()
 
     config_file = ruamel.yaml.YAML().load(pathlib.Path(args.config).read_text())
     app.state.config = Config.parse(config_file)
     app.state.batches = collections.OrderedDict()
 
-    uvicorn.run(app, host=args.host, port=args.port)
+    uvicorn.run(
+        app,
+        host=args.host,
+        port=args.port,
+        ssl_certfile=args.ssl_certfile,
+        ssl_keyfile=args.ssl_keyfile,
+    )
